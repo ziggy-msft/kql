@@ -1,0 +1,64 @@
+// KQL graph semantics: https://learn.microsoft.com/en-us/azure/data-explorer/graph-overview
+//
+let Node_objects = datatable(ObjName:string, ObjType:string, ObjSensitive:bool) 
+[ 
+  "Alice-a","User",false, // even though Alice's admin account is marked not sensitive, the graph will find it sensitive due to tareget access
+  "Alice","User",false,
+  "Bob", "User",false,
+  "Charlie","User",false,
+  "David","User",false,
+  "svc-prnt01","User",false,
+  "DC-01","Computer",true,
+  "DC-02","Computer",true,
+  "WebApp01","Computer",false,
+  "WebApp02","Computer",false,
+  "Win11-01","Computer",false,
+  "Win11-02","Computer",false,
+  "Print Operators","Group",true,
+  "Domain Controllers","Group",true,
+  "Domain Admins","Group",true,
+  "Enterprise Admins","Group",true,
+  "grp-printapp","Group",false,
+  "grp-admins","Group",false,
+  "grp-webapp01-admins","Group",false,
+  "grp-oldapp01","Group",false,
+  "grp-oldapp01-operators","Group",false
+]; 
+let Edge_memberships = datatable(GroupMember:string, GroupRelationship:string, GroupName:string) 
+[ 
+    "Alice-a","memberOf","Domain Admins",
+    "svc-prnt01","memberOf","grp-printapp",
+    "grp-printapp","memberOf","Print Operators",
+    "grp-oldapp01","memberOf","grp-admins",
+    "grp-oldapp01-operators","memberOf","grp-oldapp01",
+    "David","memberOf","grp-oldapp01-operators",
+    "grp-admins","memberOf","Enterprise Admins",
+    "Bob","memberOf","Server Operators",
+    "Charlie","memberOf","Domain Users",
+    "Alice-a","memberOf","Domain Users",
+    "Bob","memberOf","Domain Users",
+    "Charlie","memberOf","grp-webapp01-admins",
+    "David","memberOf","Domain Users",
+    "DC-01","memberOf","Domain Controllers",
+    "DC-02","memberOf","Domain Controllers",
+    "WebApp01","memberOf","Web Server group",
+    "WebApp02","memberOf","Web Server group",
+    "Win11-01","memberOf","Domain Computers",
+    "Win11-021","memberOf","Domain Computers",
+    "Domain Admins","administers","Domain Controllers",     // define administration path to build graph
+    "Enterprise Admins","administers","Domain Controllers", 
+    "Print Operators","administers","Domain Controllers"
+]; 
+//
+Edge_memberships
+| make-graph GroupMember --> GroupName with Node_objects on ObjName // Ref: https://learn.microsoft.com/en-us/azure/data-explorer/kusto/query/make-graph-operator
+| graph-match (graph_source)-[graph_membership*1..9]->(graph_dest)  // inspect edges up to 9 levels deep 
+  where graph_dest.ObjSensitive == true // only include sensitive destination objects
+  project graph_source.ObjName, graph_source.ObjType,
+          graph_membership.GroupRelationship,
+          graph_dest.ObjName
+| project SourceObjectName=graph_source_ObjName, SourceObjectType=graph_source_ObjType, NestedLevels=array_length(graph_membership_GroupRelationship), TargetSensitiveObject=graph_dest_ObjName
+| sort by NestedLevels desc 
+//
+// Summarize further by only showing an array of access to sensitive objects:
+//| summarize make_set(SourceObjectName) by TargetObject
