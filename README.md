@@ -1,0 +1,2 @@
+# kql
+Example KQL code
