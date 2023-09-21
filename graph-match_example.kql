@@ -1,5 +1,6 @@
 // KQL graph semantics: https://learn.microsoft.com/en-us/azure/data-explorer/graph-overview
 //
+// Example table containing AD objects and sensitivity
 let Node_objects = datatable(ObjName:string, ObjType:string, ObjSensitive:bool) 
 [ 
   "Alice-a","User",false, // even though Alice's admin account is marked not sensitive, the graph will find it sensitive due to tareget access
@@ -24,6 +25,7 @@ let Node_objects = datatable(ObjName:string, ObjType:string, ObjSensitive:bool)
   "grp-oldapp01","Group",false,
   "grp-oldapp01-operators","Group",false
 ]; 
+// Example table defining relationships between objects
 let Edge_memberships = datatable(GroupMember:string, GroupRelationship:string, GroupName:string) 
 [ 
     "Alice-a","memberOf","Domain Admins",
