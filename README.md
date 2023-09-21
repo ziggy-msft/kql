@@ -1,2 +1,1 @@
-# kql
-Example KQL code
+KQL query examples
